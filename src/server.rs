@@ -165,9 +165,13 @@ impl FtpServer {
                         *self.cwd.borrow_mut() = self.root_dir.clone();
                     }
                     _  =>{
-                        if command.argument == 0 {
-                        
+                        if command.argument == "0" {
+                        unimplemented!();
                         }
+                        let mut temp = self.cwd.borrow().clone();
+                        temp.push('/');
+                        temp.push_str(&command.argument);
+                        *self.cwd.borrow_mut() = temp;
                     }
                 }
                 
@@ -200,18 +204,7 @@ impl FtpServer {
                 .unwrap();
                 receive_file(self.user.as_ref().unwrap(), file_desc);
             }
-            _ => {
-
-                //     OpenOptions::new()
-//     .write(true)
-//     .create_new(true)
-//     .open(&filepath)
-//     .unwrap();
-// // .open(DIR.to_owned()+"//test.txt")
-// // .open(filepath)
-// // .unwrap();
-    
-            }
+            _ => (),
         }
     }
 
@@ -385,24 +378,27 @@ pub fn receive_file(mut stream: &TcpStream, mut file: File) {
 }
 
 /// Captures a packet with client's cmd command string.
-pub fn capture_command(mut stream: &TcpStream) -> RecvdCommand{
+pub fn capture_command(mut stream: &TcpStream) -> RecvdCommand {
     let mut buffer: [u8; 1400]  = [0; 1400];
     let mut parsed: String = String::new();
     match stream.read(&mut buffer) {
         Ok(n) => {  
             parsed = match std::str::from_utf8(&buffer[..n]) {
                 Ok(string) => string.to_string(),
+                //Error at parsing
                 Err(_) => return RecvdCommand::new("0".to_string(), "0".to_string(), None),
             };
         }
         Err(e) => {
             eprintln!("Failed to read from socket: {}", e);
+            //Error at reading
             return RecvdCommand::new("0".to_string(), "0".to_string(), None);
         }
     };
     //cutting EOF sign
     parsed.pop();
     parsed.pop();
+    
     // Assuming received command is correct
     for (i, c) in parsed.chars().enumerate() {
         if c == ' ' {
