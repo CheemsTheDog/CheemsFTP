@@ -165,9 +165,9 @@ impl FtpServer {
                         *self.cwd.borrow_mut() = self.root_dir.clone();
                     }
                     _  =>{
-                        if command.argument == "0" {
-                        unimplemented!();
-                        }
+                        // if command.argument == "0" {
+                        // unimplemented!();
+                        // }
                         let mut temp = self.cwd.borrow().clone();
                         temp.push('/');
                         temp.push_str(&command.argument);
