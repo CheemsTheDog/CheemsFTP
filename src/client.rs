@@ -31,19 +31,19 @@ impl User {
             .expect("Failed to read line");
             self.handle.write(&to_send.as_bytes()); 
             //----------------------
-            let mut parsed: String = String::new();
-            match self.handle.read(&mut buffer) {
-                Ok(n) => {  
-                    parsed = match std::str::from_utf8(&buffer[..n]) {
-                        Ok(string) => string.to_string(),
-                        Err(_) => panic!("Invalid UTF-8 sequence"),
-                    };
-                }
-                Err(e) => {
-                    eprintln!("Failed to read from socket: {}", e);
-                }
-            };
-            println!("{}", &parsed)
+            // let mut parsed: String = String::new();
+            // match self.handle.read(&mut buffer) {
+            //     Ok(n) => {  
+            //         parsed = match std::str::from_utf8(&buffer[..n]) {
+            //             Ok(string) => string.to_string(),
+            //             Err(_) => panic!("Invalid UTF-8 sequence"),
+            //         };
+            //     }
+            //     Err(e) => {
+            //         eprintln!("Failed to read from socket: {}", e);
+            //     }
+            // };
+            // println!("{}", &parsed)
         }
 
     }
