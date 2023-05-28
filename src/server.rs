@@ -24,8 +24,10 @@ use std::os::windows::prelude::FileExt;
 // use self::logged_user::{LoggedUser, Privileges};
 
 use std::fs::{remove_file};
+
 const BUF_LENGTH: usize = 1400;
 pub mod sys_commands;
+pub mod user;
 // mod logged_user;
 pub struct FtpServer {
     // addr: SocketAddrV4,
@@ -40,7 +42,7 @@ pub struct FtpServer {
     // users: Vec<logged_user::LoggedUser>,
     user: Option<TcpStream>,
     cwd: RefCell<String>,
-    // user_entries: String,
+    user_entries: String,
     root_dir: String,
     }
 // pub enum UserTruncate {
@@ -65,21 +67,6 @@ pub struct FtpServer {
 //     command_type: Action
 // }
 
-pub struct RecvdCommand  {
-    command: String,
-    argument: String,
-    output: Option<String>,
-}
-
-impl RecvdCommand {
-    pub fn new(command:  String, argument: String, output: Option<String>) -> Self {
-        return  Self{
-            command,
-            argument, 
-            output
-        }
-    }
-} 
 impl FtpServer {
     pub fn new<A: ToSocketAddrs>(addr: A) -> Self {
 
@@ -103,7 +90,7 @@ impl FtpServer {
             // users: Vec::new(),
             user: None,
             cwd: RefCell::new(String::from("C:/Users/Ryzen/Desktop/Test")),
-            // user_entries: String::from("C://"),
+            user_entries: String::from("C:/"),
             root_dir: String::from("C:/"),
         }
     }
@@ -141,40 +128,24 @@ impl FtpServer {
     }
 /// Performs user defined actions to the connected TCPStream
     pub fn handle_client(&self) {
-        use crate::server::capture_command;
         loop {
-            self.handle_command( capture_command(self.user.as_ref().unwrap() ) )
+            match user::auth_usr(self.user.as_ref().unwrap(), self.) {
+                Ok(_) => {
+                    self.handle_command( sys_commands::capture_command(self.user.as_ref().unwrap() ) ); 
+                }
+                Err(_) => { break; }
+            }
         }
     }
-    pub fn handle_command(&self, command: RecvdCommand) {
-        use crate::server::send_file;
+    pub fn handle_command(&self, command: sys_commands::RecvdCommand) {
+        use crate::server::sys_commands::send_file;
         let mut path = self.cwd.borrow().clone();
         match command.command.as_str() {
             "cd" => {
-                match command.argument.as_str() {
-                    ".." => {
-                        let mut pos: usize = 0;
-                        for (i, c) in command.argument.chars().enumerate() {  
-                            if c == '/' {
-                                pos = i;
-                            }
-                        }
-                        (*self.cwd.borrow_mut()).truncate(pos);
-                    }
-                    "/." => {
-                        *self.cwd.borrow_mut() = self.root_dir.clone();
-                    }
-                    _  =>{
-                        // if command.argument == "0" {
-                        // unimplemented!();
-                        // }
-                        let mut temp = self.cwd.borrow().clone();
-                        temp.push('/');
-                        temp.push_str(&command.argument);
-                        *self.cwd.borrow_mut() = temp;
-                    }
+                *self.cwd.borrow_mut() = match sys_commands::cd(self.user.as_ref().unwrap(),&self.root_dir, self.cwd.borrow().clone() , Some(command.argument)) {
+                    Some(n) => { n },
+                    None => self.cwd.borrow().clone(),
                 }
-                
             }
             "dir" => {
                 
@@ -197,12 +168,14 @@ impl FtpServer {
                 send_file(self.user.as_ref().unwrap(), path);
             }
             "upload" => {
-                let mut file_desc = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path)
-                .unwrap();
-                receive_file(self.user.as_ref().unwrap(), file_desc);
+                sys_commands::receive_file(
+                self.user.as_ref().unwrap(), 
+                OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(path)
+                        .unwrap()
+                );
             }
             _ => (),
         }
@@ -286,101 +259,3 @@ impl FtpServer {
     //     } 
     // }
 
-//     fn authenticate_user(&self, mut connection: TcpStream) -> Result<LoggedUser, ()>
-//      {
-//         let mut temp: String = String::new();
-//         connection.read_to_string(&mut temp);
-//         let temp_vec: Vec<&str> = temp.trim().split(" ").collect();
-
-//         let user_entries_file = File::open(&self.user_entries).unwrap();
-//         let buffer = BufReader::new(user_entries_file);
-//         for line in buffer.lines() {
-//             match line {
-//                 Ok(line) => {
-// //1 -> login, 2 -> password, 3 -> usertype, 4 -> login, 5 -> login, 6 -> login, 7 -> login, 8 -> login, 
-//                     let user_entry: Vec<&str>= line.trim().split(" ").collect();
-//                     let mut user_type: logged_user::UserType;
-//                     if temp_vec[0] == user_entry[0] && temp_vec[1] == user_entry[1] {
-//                         let mut user_type: logged_user::UserType = {
-//                             match user_entry[2] {
-//                                 "0" => logged_user::UserType::Admin,
-//                                 "1" => logged_user::UserType::Moderator,
-//                                 "2" => logged_user::UserType::Default,
-//                                  _  => logged_user::UserType::Default,
-//                             }};  
-//                         return Ok( LoggedUser::new( 
-//                                         user_type, 
-//                                         temp_vec[0].to_owned(), 
-//                                         temp_vec[1].to_owned(), 
-//                                         connection,
-//                                         1000 , 
-//                                         Privileges::new(
-//                                             true, 
-//                                             true, 
-//                                             true, 
-//                                             true
-//                         ))); }}
-//                     Err(_) => (),
-//                     }}
-//         return Err(());
-
-// }
-///General purpose fn to send a file at path to stream.
-///Opens the file in standard read-only mode.
-///Absolute path must be provided
-
-
-
-/// Captures a packet with client's cmd command string.
-pub fn capture_command(mut stream: &TcpStream) -> RecvdCommand {
-    let mut buffer: [u8; 1400]  = [0; 1400];
-    let mut parsed: String = String::new();
-    match stream.read(&mut buffer) {
-        Ok(n) => {  
-            parsed = match std::str::from_utf8(&buffer[..n]) {
-                Ok(string) => string.to_string(),
-                //Error at parsing
-                Err(_) => return RecvdCommand::new("0".to_string(), "0".to_string(), None),
-            };
-        }
-        Err(e) => {
-            eprintln!("Failed to read from socket: {}", e);
-            //Error at reading
-            return RecvdCommand::new("0".to_string(), "0".to_string(), None);
-        }
-    };
-    //cutting EOF sign
-    parsed.pop();
-    parsed.pop();
-    
-    // Assuming received command is correct
-    for (i, c) in parsed.chars().enumerate() {
-        if c == ' ' {
-            return RecvdCommand::new((&parsed[..i]).to_string(), (&parsed[i+1..]).to_string(), None  );
-        }
-    }
-    // Else return command/_ with 0 argument. Possible breaches of security.
-    return RecvdCommand::new(parsed, "0".to_string(), None); 
-
-    // if &parsed[..2] == "cd" {
-    //     let mut temp = String::new();
-    //     temp.push_str(&parsed);
-    //     temp.push_str(" && cd");
-    //     let output= Command::new("cmd")
-    //     .args(&["/C", &temp])
-    //     .output()
-    //     .expect("Failed to execute command");
-    //     *self.cwd.borrow_mut() = String::from_utf8_lossy(&output.stdout).to_string();
-    //     return self.cwd.borrow().clone();
-
-    // }
-    // let mut command = String::from("cd ");
-    // command.push_str(self.cwd.borrow().as_str());
-    // command.push_str(" && ");
-    // command.push_str(&parsed);
-    // let output = Command::new("cmd")
-    // .args(&["/C", &command])
-    // .output()
-    // .expect("Failed to execute command");
-    // return String::from_utf8_lossy(&output.stdout).to_string();
-}
