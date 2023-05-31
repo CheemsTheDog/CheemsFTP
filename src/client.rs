@@ -6,6 +6,7 @@ use std::fs::{OpenOptions, File};
 use std::io::{Read, Write, Seek, SeekFrom, BufRead};
 use std::os::windows::prelude::FileExt;
 use std::str::from_utf8;
+
 const BUF_LENGTH: usize = 1400;
 pub struct User {
     username: String,
@@ -14,6 +15,7 @@ pub struct User {
 }
 
 impl User {
+    /// Creates a new user. Connets to remote addr server.
     pub fn new<A: ToSocketAddrs>(username: String, password: String, addr: A) -> Self{
         Self { 
             username, 
@@ -22,9 +24,9 @@ impl User {
                 Ok(handle) => handle,
                 Err(error) => panic!("Problem setting the stream: {:?}", error),
             }
-
         }
     }
+    /// Begins interacting with server by authenticating user's credentials. Runs CLI if succesful.
     pub fn start_session(&self) {
         match self.auth_me() {
             Ok(_) => {
@@ -35,102 +37,101 @@ impl User {
             }
         }
     }
-    pub fn run(&self) {
-        loop {
-            let mut command = String::new();
-            io::stdin().read_line(&mut command);
-        }
-
-        // .trim().parse::<u8>().expect("Dupa");
-        todo!();
-    }
-    pub fn print_interface() {
-        todo!();
-    }
+    /// Runs authentication interaction with server. Ok() for success, Err() for failure
     pub fn auth_me(&self) -> io::Result<()> {
         let mut buffer: [u8; 20] = [0;20];
         let mut credentials = String::from(self.username);
         credentials.push_str(" ");
         credentials.push_str(&self.password);
         match self.handle.write(credentials.as_bytes()) {
-            Err(_) => Err(Error::new(ErrorKind::Other, "Unable to send credentials to server.")),
+            Err(_) => Err(Error::new(ErrorKind::ConnectionRefused, "Unable to send credentials to server.")),
             Ok(_) => Ok(()),
         };
         match self.handle.read(&mut buffer) {
-            Ok(0) => Err(Error::new(ErrorKind::Other, "Unable to read server response.")),
+            Ok(0) => Err(Error::new(ErrorKind::ConnectionRefused, "Unable to read server response.")),
             Ok(n) => {
                 match from_utf8(&buffer[..n]) {
-                    Ok("0") => Err(Error::new(ErrorKind::Other, "Authentication denied, try again.")),
+                    Ok("0") => Err(Error::new(ErrorKind::ConnectionRefused, "Authentication denied, try again.")),
                     Ok("1") => Ok(())
                 }
             },
-            Err(_) => Err(Error::new(ErrorKind::Other, "Unable to read server response")),
+            Err(_) => Err(Error::new(ErrorKind::ConnectionRefused, "Unable to read server response")),
         }
     }
-    pub fn send_command(&mut self) {
-        loop {
-            let mut buffer  = [0; 1400];
-            let mut to_send = String::new();
-            io::stdin()
-            .read_line(&mut to_send)
-            .expect("Failed to read line");
-            self.handle.write(&to_send.as_bytes()); 
-            //----------------------
-            // let mut parsed: String = String::new();
-            // match self.handle.read(&mut buffer) {
-            //     Ok(n) => {  
-            //         parsed = match std::str::from_utf8(&buffer[..n]) {
-            //             Ok(string) => string.to_string(),
-            //             Err(_) => panic!("Invalid UTF-8 sequence"),
-            //         };
-            //     }
-            //     Err(e) => {
-            //         eprintln!("Failed to read from socket: {}", e);
-            //     }
-            // };
-            // println!("{}", &parsed)
-        }
+    /// Runs CLI
+    pub fn run(&self) {
+        loop { 
+            let command = get_input();
+            match command.0.as_str() {
+                "cd" => {
+                    match command.1 {
+                        None => self.send_command(command),
+                        Some(_) => {
+                            self.send_command(command);
+                            self.fetch_output();
+                        }
+                    }
+                }
+                "dir" => {
+                    self.send_command(command);
+                    self.fetch_output();           
+                }
+                "mkdir" | "rmdir" | "echo." | "del "=> {
+                    self.send_command(command);
+                }
+                "download" => {
+                    
+                }
+                "upload" => {
+                    sys_commands::receive_file(
+                    self.user.as_ref().unwrap(), 
+                    OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(path)
+                            .unwrap()
+                    );
+                }
+                _ => (),
 
-    }
-    pub fn send(&mut self) {
-        let mut file_toSend = OpenOptions::new()
-            .read(true)
-            .open(path)
-            .unwrap();
-        let mut buffer:[u8; BUF_LENGTH] = [0;BUF_LENGTH];
-        let mut start: u64 = 0;
-        let mut end: u64 = 0; 
-        let filesize = file_toSend.metadata().unwrap().len();
-        let mut filesize_left = file_toSend.metadata().unwrap().len();
-        println!("Filesize: {}", filesize);
+                
 
-        loop {
-            if filesize_left < BUF_LENGTH as u64 {
-                if filesize_left == 0 { return; } 
-                file_toSend.seek_read(&mut buffer[.. filesize_left as usize ], filesize-filesize_left).unwrap_or_default();
-                self.handle.write(&buffer[.. filesize_left as usize ]).unwrap_or_default();
-                #[cfg(feature = "client")]
-                println!("Bytes left: {}", filesize_left);
-                #[cfg(feature = "client")]
-                println!("Data transfered in 100%");
-                return; }
+            }
 
-            else {
-                file_toSend.seek_read(&mut buffer[..], filesize-filesize_left).unwrap_or_default();
-                filesize_left-=BUF_LENGTH as u64;
-                self.handle.write(&buffer).unwrap_or_default();
-                #[cfg(feature = "client")] 
-                println!("Bytes left: {}", filesize_left);
-                #[cfg(feature = "weclientbp")]
-                println!("Data transfered in {:.2}%", ( (filesize - filesize_left)*100/filesize ) as f64 ); }
+        // .trim().parse::<u8>().expect("Dupa");
+        todo!();
         }
     }
-}
-pub fn get_input() -> (String, String) {
+    pub fn print_interface() {
+        todo!();
+    }
+/// Sends command to the server. Option< String> handles possibility that the command may not return any output therefor no data packets are to be received.
+    pub fn send_command(&self, mut commands: (String, Option<String>)){
+        match commands.1 {
+            Some(_) =>{
+            commands.0.push_str(commands.1.unwrap().trim());
+            self.handle.write( commands.0.as_bytes());
+            }
+            None => { self.handle.write( commands.0.as_bytes()); },
+        }
+    }
+    ///Fetches the command output from the server and prints it in the terminal.
+    pub fn fetch_output(&self) {
+        let mut buffer = [0;BUF_LENGTH];
+        self.handle.read(&mut buffer);
+        println!("{}", from_utf8(&buffer).unwrap())
+    }
+    }
+///Cut input into command and Option< argument>
+pub fn get_input() -> (String, Option<String>) {
     let mut command = String::new();
     io::stdin().read_line(&mut command);
     let splited: Vec<&str>= command.trim().split(' ').collect();
-    (splited.get(0))
-
-
+    let mut arg = splited.get(2);
+    let mut arg2: Option<String>;
+    match arg {
+        Some(n) => arg2 = Some(n.to_string()),
+        None => arg2 = None,
+    }
+    return (splited[0].to_string(), arg2)
 }
