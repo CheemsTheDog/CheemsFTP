@@ -1,47 +1,50 @@
 use std::{net::TcpStream, io::{Read, BufReader, Write, BufRead}, fs::File};
 /// Authenticates user with given credentials. Reads login and passowrd separately. 
 pub fn auth_usr(mut stream: &TcpStream, path: &String) -> Result<(), ()> {
-    let mut buffer = [0;1400];
-    let mut credentials = String::new();
-    //Read login from stream
-    match stream.read(&mut buffer) {
-        Ok(0) => return Err(()),
-        Ok(n) => {
-            match std::str::from_utf8(&buffer[..n]) {
-                Ok(login) => credentials.push_str(login) ,
-                //Error at parsing
-                Err(_) => return Err(()),
-            };
-        },
-        Err(e) => { 
-            eprintln!("Failed to read from socket: {}", e);
-            return Err(());
-        }
-    };
-    //Read password from stream
-    match stream.read(&mut buffer) {
-        Ok(0) => return Err(()),
-        Ok(n) => {
-            match std::str::from_utf8(&buffer[..n]) {
-                Ok(password) => credentials.push_str(password),
-                //Error at parsing
-                Err(_) => return Err(()),
-            };
-        },
-        Err(e) => {
-            eprintln!("Failed to read from socket: {}", e);
-            return Err(());
-        }
-    };
-
-    let entries = File::open(path).unwrap();
-    let file_buf = BufReader::new(entries);
-    for line in file_buf.lines() {
-        if line.unwrap() == credentials {
-            return Ok(());
-        }
-    }
-    return Err(());
+    // let mut buffer = [0;1400];
+    // let mut credentials = String::new();
+    // //Read login from stream
+    // match stream.read(&mut buffer) {
+    //     Ok(0) => return Err(()),
+    //     Ok(n) => {
+    //         match std::str::from_utf8(&buffer[..n]) {
+    //             Ok(login) => credentials.push_str(login) ,
+    //             //Error at parsing
+    //             Err(_) => return Err(()),
+    //         };
+    //     },
+    //     Err(e) => { 
+    //         eprintln!("Failed to read from socket: {}", e);
+    //         return Err(());
+    //     }
+    // };
+    // //Read password from stream
+    // match stream.read(&mut buffer) {
+    //     Ok(0) => return Err(()),
+    //     Ok(n) => {
+    //         match std::str::from_utf8(&buffer[..n]) {
+    //             Ok(password) => credentials.push_str(password),
+    //             //Error at parsing
+    //             Err(_) => return Err(()),
+    //         };
+    //     },
+    //     Err(e) => {
+    //         eprintln!("Failed to read from socket: {}", e);
+    //         return Err(());
+    //     }
+    // };
+    // // Search for given entry
+    // let entries = File::open(path).unwrap();
+    // let file_buf = BufReader::new(entries);
+    // for line in file_buf.lines() {
+    //     if line.unwrap() == credentials {
+    //         return Ok(());
+    //     }
+    // }
+    // return Err(());
+    let mut buffer = "1".as_bytes();
+    stream.write(&buffer);
+    return Ok(());
 }
 // pub fn auth_usr(mut connection: TcpStream, path: String) -> Result<(), ()> {
 //     let mut temp: String = String::new();

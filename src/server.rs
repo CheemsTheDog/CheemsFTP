@@ -42,8 +42,8 @@ pub struct FtpServer {
     // users: Vec<logged_user::LoggedUser>,
     user: Option<TcpStream>,
     cwd: RefCell<String>,
-    user_entries: String,
     root_dir: String,
+    credentials: String,
     }
 // pub enum UserTruncate {
 //     AllowExcessive,
@@ -89,9 +89,10 @@ impl FtpServer {
             // use_timeout: false,
             // users: Vec::new(),
             user: None,
-            cwd: RefCell::new(String::from("C:/Users/Ryzen/Desktop/Test")),
-            user_entries: String::from("C:/"),
+            cwd: RefCell::new(String::new()),
             root_dir: String::from("C:/"),
+            credentials: String::new(),
+
         }
     }
     // fn set_read_only(&mut self, is_read_only: bool) { self.read_only = is_read_only; }
@@ -109,10 +110,12 @@ impl FtpServer {
     //         UserTruncate::TruncateExcessive => (),
     //     }
     // }
-    // fn set_credentials(&mut self, path: String) { self.user_entries = path; }
+    pub fn set_credentials(&mut self, path: String) { self.credentials = path; }
 
-    // fn set_root_dir(&mut self, path: String) { self.root_dir = path; }
+    pub fn set_root_dir(&mut self, path: String) { self.root_dir = path; }
 
+    pub fn set_cwd(&mut self, path: String) {*self.cwd.borrow_mut() = path}
+    
     ///Starts server's listening
     pub fn start_listening(&mut self) {
         for connection in self.handler.incoming() {
@@ -129,7 +132,7 @@ impl FtpServer {
 /// Performs user defined actions to the connected TCPStream
     pub fn handle_client(&self) {
         loop {
-            match user::auth_usr(self.user.as_ref().unwrap(), &self.user_entries) {
+            match self.auth_usr() {
                 Ok(_) => {
                     self.handle_command( sys_commands::capture_command(self.user.as_ref().unwrap() ) ); 
                 }
@@ -143,9 +146,9 @@ impl FtpServer {
         let mut path = self.cwd.borrow().clone();
         match command.command.as_str() {
             "cd" => {
-                *self.cwd.borrow_mut() = match sys_commands::cd(self.user.as_ref().unwrap(),&self.root_dir, self.cwd.borrow().clone() , Some(command.argument)) {
-                    Some(n) => { n },
-                    None => self.cwd.borrow().clone(),
+                match sys_commands::cd(self.user.as_ref().unwrap(),&self.root_dir, self.cwd.borrow().clone() , Some(command.argument)) {
+                    Some(n) => { *self.cwd.borrow_mut() = n },
+                    None => (),
                 }
             }
             "dir" => {
@@ -185,8 +188,7 @@ impl FtpServer {
     fn send_cmd_result(mut stream: &TcpStream, mut result: String) {
         if result.is_empty() { result.push_str("Done"); }
         stream.write(&result.as_bytes()).unwrap();
-    }
-} 
+    } 
     // Creates a "name" dir with a cmd command at user's cwd
 //     pub fn mkdir(&self, dirname: String) {
 //         let mut command = String::from("cd ");
@@ -242,3 +244,50 @@ impl FtpServer {
 //         .output()
 //         .expect("Failed to execute command");
 //     }
+    pub fn auth_usr(&self) -> Result<(), ()> {
+        // let mut buffer = [0;1400];
+        // let mut credentials = String::new();
+        // //Read login from stream
+        // match stream.read(&mut buffer) {
+        //     Ok(0) => return Err(()),
+        //     Ok(n) => {
+        //         match std::str::from_utf8(&buffer[..n]) {
+        //             Ok(login) => credentials.push_str(login) ,
+        //             //Error at parsing
+        //             Err(_) => return Err(()),
+        //         };
+        //     },
+        //     Err(e) => { 
+        //         eprintln!("Failed to read from socket: {}", e);
+        //         return Err(());
+        //     }
+        // };
+        // //Read password from stream
+        // match stream.read(&mut buffer) {
+        //     Ok(0) => return Err(()),
+        //     Ok(n) => {
+        //         match std::str::from_utf8(&buffer[..n]) {
+        //             Ok(password) => credentials.push_str(password),
+        //             //Error at parsing
+        //             Err(_) => return Err(()),
+        //         };
+        //     },
+        //     Err(e) => {
+        //         eprintln!("Failed to read from socket: {}", e);
+        //         return Err(());
+        //     }
+        // };
+        // // Search for given entry
+        // let entries = File::open(path).unwrap();
+        // let file_buf = BufReader::new(entries);
+        // for line in file_buf.lines() {
+        //     if line.unwrap() == credentials {
+        //         return Ok(());
+        //     }
+        // }
+        // return Err(());
+        let mut buffer = "1".as_bytes();
+        self.user.as_ref().unwrap().write(&buffer);
+        return Ok(());
+    }
+}

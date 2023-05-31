@@ -1,5 +1,8 @@
 use std::{process::Command, net::TcpStream, fs::{OpenOptions, File}, 
 os::windows::prelude::FileExt, io::{Write, Read}};
+
+pub const COMMAND_SEPARATOR: &str = "&&";
+pub const BUF_LENGTH: usize = 1400;
 pub struct RecvdCommand  {
     pub command: String,
     pub argument: String,
@@ -15,8 +18,7 @@ impl RecvdCommand {
         }
     }
 } 
-pub const COMMAND_SEPARATOR: &str = "&&";
-pub const BUF_LENGTH: usize = 1400;
+
 ///Returns dir content as vector of filenames inside it.
 pub fn dir(path: String) -> Option<Vec<String>>{
     let mut dir_vec: Vec<String> = Vec::new();
@@ -125,6 +127,7 @@ pub fn send_file(mut stream: &TcpStream, path: String){
     let mut end: u64 = 0; 
     let filesize = file_toSend.metadata().unwrap().len();
     let mut filesize_left = file_toSend.metadata().unwrap().len();
+    #[cfg(feature = "client")]
     println!("Filesize: {}", filesize);
 
     loop {
@@ -134,14 +137,14 @@ pub fn send_file(mut stream: &TcpStream, path: String){
             stream.write(&buffer[.. filesize_left as usize ]).unwrap_or_default();
             println!("Bytes left: {}", filesize_left);
             println!("Data transfered in 100%");
-            return; }
-
-        else {
+            return; 
+        } else {
             file_toSend.seek_read(&mut buffer[..], filesize-filesize_left).unwrap_or_default();
             filesize_left-=BUF_LENGTH as u64;
-            stream.write(&buffer).unwrap_or_default(); 
+            stream.write(&buffer).unwrap_or_default();
             println!("Bytes left: {}", filesize_left);
-            println!("Data transfered in {:.2}%", ( (filesize - filesize_left)*100/filesize ) as f64 ); }
+            println!("Data transfered in {:.2}%", ( (filesize - filesize_left)*100/filesize ) as f64 ); 
+        }
     }
 }
 /// General purpose funtion to receive data from stream and save it in a file.

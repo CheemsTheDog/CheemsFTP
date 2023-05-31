@@ -1,9 +1,11 @@
+use std::io::{Error, ErrorKind}
 use std::net::ToSocketAddrs;
 use std::net::TcpStream;
 use std::io;
 use std::fs::{OpenOptions, File};
 use std::io::{Read, Write, Seek, SeekFrom, BufRead};
 use std::os::windows::prelude::FileExt;
+use std::str::from_utf8;
 const BUF_LENGTH: usize = 1400;
 pub struct User {
     username: String,
@@ -18,11 +20,53 @@ impl User {
             password,
             handle: match TcpStream::connect(addr) {
                 Ok(handle) => handle,
-                Err(error) => panic!("Problem opening the file: {:?}", error),
+                Err(error) => panic!("Problem setting the stream: {:?}", error),
+            }
+
+        }
+    }
+    pub fn start_session(&self) {
+        match self.auth_me() {
+            Ok(_) => {
+                self.run();
+            }
+            Err(e) => {
+                eprintln!("{}", e);
             }
         }
     }
-    pub fn run(&self)
+    pub fn run(&self) {
+        loop {
+            let mut command = String::new();
+            io::stdin().read_line(&mut command);
+        }
+
+        // .trim().parse::<u8>().expect("Dupa");
+        todo!();
+    }
+    pub fn print_interface() {
+        todo!();
+    }
+    pub fn auth_me(&self) -> io::Result<()> {
+        let mut buffer: [u8; 20] = [0;20];
+        let mut credentials = String::from(self.username);
+        credentials.push_str(" ");
+        credentials.push_str(&self.password);
+        match self.handle.write(credentials.as_bytes()) {
+            Err(_) => Err(Error::new(ErrorKind::Other, "Unable to send credentials to server.")),
+            Ok(_) => Ok(()),
+        };
+        match self.handle.read(&mut buffer) {
+            Ok(0) => Err(Error::new(ErrorKind::Other, "Unable to read server response.")),
+            Ok(n) => {
+                match from_utf8(&buffer[..n]) {
+                    Ok("0") => Err(Error::new(ErrorKind::Other, "Authentication denied, try again.")),
+                    Ok("1") => Ok(())
+                }
+            },
+            Err(_) => Err(Error::new(ErrorKind::Other, "Unable to read server response")),
+        }
+    }
     pub fn send_command(&mut self) {
         loop {
             let mut buffer  = [0; 1400];
@@ -49,7 +93,6 @@ impl User {
 
     }
     pub fn send(&mut self) {
-        let path = String::from("C://Users//Ryzen//Desktop//Projekty//TCP_Klient//DonEskobar.txt");
         let mut file_toSend = OpenOptions::new()
             .read(true)
             .open(path)
@@ -64,19 +107,30 @@ impl User {
         loop {
             if filesize_left < BUF_LENGTH as u64 {
                 if filesize_left == 0 { return; } 
-                // modulo = (BUF_LENGTH-(BUF_LENGTH-filesize_left as usize));
                 file_toSend.seek_read(&mut buffer[.. filesize_left as usize ], filesize-filesize_left).unwrap_or_default();
                 self.handle.write(&buffer[.. filesize_left as usize ]).unwrap_or_default();
+                #[cfg(feature = "client")]
                 println!("Bytes left: {}", filesize_left);
+                #[cfg(feature = "client")]
                 println!("Data transfered in 100%");
                 return; }
 
             else {
                 file_toSend.seek_read(&mut buffer[..], filesize-filesize_left).unwrap_or_default();
                 filesize_left-=BUF_LENGTH as u64;
-                self.handle.write(&buffer).unwrap_or_default(); 
+                self.handle.write(&buffer).unwrap_or_default();
+                #[cfg(feature = "client")] 
                 println!("Bytes left: {}", filesize_left);
+                #[cfg(feature = "weclientbp")]
                 println!("Data transfered in {:.2}%", ( (filesize - filesize_left)*100/filesize ) as f64 ); }
         }
     }
+}
+pub fn get_input() -> (String, String) {
+    let mut command = String::new();
+    io::stdin().read_line(&mut command);
+    let splited: Vec<&str>= command.trim().split(' ').collect();
+    (splited.get(0))
+
+
 }
