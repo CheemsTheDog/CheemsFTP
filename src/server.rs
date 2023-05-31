@@ -129,7 +129,7 @@ impl FtpServer {
 /// Performs user defined actions to the connected TCPStream
     pub fn handle_client(&self) {
         loop {
-            match user::auth_usr(self.user.as_ref().unwrap(), self.) {
+            match user::auth_usr(self.user.as_ref().unwrap(), &self.user_entries) {
                 Ok(_) => {
                     self.handle_command( sys_commands::capture_command(self.user.as_ref().unwrap() ) ); 
                 }
@@ -137,6 +137,7 @@ impl FtpServer {
             }
         }
     }
+    
     pub fn handle_command(&self, command: sys_commands::RecvdCommand) {
         use crate::server::sys_commands::send_file;
         let mut path = self.cwd.borrow().clone();
@@ -241,21 +242,3 @@ impl FtpServer {
 //         .output()
 //         .expect("Failed to execute command");
 //     }
-
-// pub fn start_listening(&mut self) {
-    //     for connection in self.handler.incoming() {
-    //         match connection {
-    //             Ok(connection) => {
-    //                 if self.current_users + 1 > self.max_users { connection.shutdown(std::net::Shutdown::Both); }
-    //                 else { 
-    //                     match self.authenticate_user(connection) {
-    //                         Ok(user) => self.users.push(user),
-    //                         Err(_) => eprintln!("Unnsuccessful login captured"), 
-    //                     } 
-    //                 }
-    //             }
-    //             Err(_) => eprintln!("Unnsuccessful connetion captured"), 
-    //         } 
-    //     } 
-    // }
-

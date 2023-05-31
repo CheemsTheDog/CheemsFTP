@@ -22,6 +22,7 @@ impl User {
             }
         }
     }
+    pub fn run(&self)
     pub fn send_command(&mut self) {
         loop {
             let mut buffer  = [0; 1400];
@@ -68,7 +69,6 @@ impl User {
                 self.handle.write(&buffer[.. filesize_left as usize ]).unwrap_or_default();
                 println!("Bytes left: {}", filesize_left);
                 println!("Data transfered in 100%");
-                self.handle.shutdown(std::net::Shutdown::Both).unwrap_or_default();
                 return; }
 
             else {
